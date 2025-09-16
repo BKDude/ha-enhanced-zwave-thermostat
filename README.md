@@ -1,135 +1,214 @@
-# Enhanced Z-Wave Thermostat (Complete Package)
+# Enhanced Z-Wave Thermostat
 
-🏠 **One-Click Installation** - Integration + Lovelace Card in a single package!
+An advanced Home Assistant integration that provides enhanced control and monitoring for Z-Wave thermostats with features like automatic scheduling, intelligent temperature management, and a beautiful Lovelace card interface.
 
-This package includes both the Enhanced Z-Wave Thermostat integration and the beautiful Lovelace card for complete thermostat control with scheduling.
+## Features
 
-## ⚡ Quick Install Options
+- **Enhanced Climate Control**: Advanced temperature management with schedule-based automation
+- **Smart Scheduling**: Automatic temperature adjustments based on time of day
+- **Z-Wave Integration**: Seamless integration with existing Z-Wave thermostats
+- **Beautiful UI**: Custom Lovelace card with intuitive controls
+- **HACS Support**: Easy installation and updates through HACS
 
-### Option 1: HACS (Recommended)
+## Installation
 
-1. **Add Custom Repository:**
-   - Go to HACS > Integrations > ⋮ (three dots) > Custom repositories
-   - Repository: `https://github.com/BKDude/ha-enhanced-zwave-thermostat`
-   - Category: Integration
-   - Click Add
+### HACS Installation (Recommended)
 
-2. **Install Integration:**
-   - Search for "Enhanced Z-Wave Thermostat" in HACS
-   - Click Install
-   - Restart Home Assistant
+1. **Install via HACS**:
+   - Open HACS in Home Assistant
+   - Go to "Integrations"
+   - Click the 3-dot menu → "Custom repositories"
+   - Add repository: `https://github.com/BKDude/ha-enhanced-zwave-thermostat`
+   - Category: "Integration"
+   - Click "Add"
+   - Find "Enhanced Z-Wave Thermostat" and click "Download"
 
-### Option 2: Automated Script
+2. **Restart Home Assistant**
 
-**Linux/macOS/Docker:**
-```bash
-# Download and run the installer
-./install.sh
-```
-
-**Windows/Python:**
-```bash
-python install.py
-```
-
-### Option 3: Manual Installation
-
-1. Copy `custom_components/enhanced_zwave_thermostat/` to your HA `custom_components/` folder
-2. Copy `www/enhanced-thermostat-card.js` to your HA `www/` folder
-3. Restart Home Assistant
-4. Add the integration via Settings > Integrations
-5. Add the card resource: `/local/enhanced-thermostat-card.js` (JavaScript Module)
-
-## 🚀 What You Get
-
-### Enhanced Z-Wave Thermostat Integration
-- **Automatic Z-Wave Discovery** - Finds your existing thermostats
-- **Safety Temperature Limits** - Configurable min/max protection
-- **Home/Away Presets** - Energy-saving temperature modes
-- **Complete Scheduling System** - Weekly temperature schedules
-- **Real-time Synchronization** - Instant updates from Z-Wave devices
-
-### Enhanced Thermostat Card
-- **Beautiful Visual Interface** - Modern thermostat design
-- **Integrated Scheduling** - Create schedules right in the card
-- **One-Touch Controls** - Temperature, mode, and preset buttons
-- **Safety Limit Display** - Shows your configured safety ranges
-- **Mobile Responsive** - Works perfectly on phones and tablets
-
-## 📋 Setup Instructions
-
-### After Installation:
-
-1. **Restart Home Assistant**
-
-2. **Add the Integration:**
-   - Go to Settings > Devices & Services
+3. **Add the Integration**:
+   - Go to Settings → Devices & Services → Integrations
    - Click "Add Integration"
    - Search for "Enhanced Z-Wave Thermostat"
-   - Configure your safety limits and default temperatures
+   - Follow the setup wizard
 
-3. **Add the Card Resource:**
-   - Go to Settings > Dashboards > Resources
-   - Click "Add Resource"
+4. **Set up the Lovelace Card**:
+   - After installation, you'll see a notification with instructions
+   - Go to Settings → Dashboards → Resources
+   - Click "+ Add Resource"
    - URL: `/local/enhanced-thermostat-card.js`
-   - Type: JavaScript Module
+   - Resource type: JavaScript Module
+   - Click "Create"
 
-4. **Add Card to Dashboard:**
-   ```yaml
-   type: custom:enhanced-thermostat-card
-   entity: climate.enhanced_living_room_thermostat
-   name: Living Room  # optional
+5. **Add Card to Dashboard**:
+   - Go to your dashboard
+   - Click "Edit Dashboard"
+   - Click "+ Add Card"
+   - Find "Enhanced Thermostat Card"
+   - Configure with your thermostat entity
+
+### Manual Installation
+
+If you prefer not to use HACS:
+
+1. **Download the Files**:
+   ```bash
+   cd /config/custom_components
+   git clone https://github.com/BKDude/ha-enhanced-zwave-thermostat.git enhanced_zwave_thermostat
    ```
 
-## 🎯 Card Configuration
+2. **Copy the Card File**:
+   ```bash
+   cp enhanced_zwave_thermostat/www/enhanced-thermostat-card.js /config/www/
+   ```
 
-### Basic Configuration:
+3. **Restart Home Assistant**
+
+4. **Follow steps 3-5 from HACS installation above**
+
+## Configuration
+
+### Basic Configuration
+
+The integration will automatically discover Z-Wave thermostats on your network. You can configure additional settings through the integration's options:
+
+- **Schedule Management**: Set up automatic temperature schedules
+- **Temperature Ranges**: Configure min/max temperature limits
+- **Update Intervals**: Adjust how often the thermostat state is refreshed
+
+### Lovelace Card Configuration
+
+Add this to your dashboard configuration:
+
 ```yaml
 type: custom:enhanced-thermostat-card
-entity: climate.enhanced_your_thermostat_name
+entity: climate.your_thermostat_name
+show_schedule: true
+show_humidity: true
+temperature_unit: "°F"  # or "°C"
 ```
 
-### Advanced Configuration:
+#### Card Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `entity` | string | **Required** | Your thermostat entity ID |
+| `show_schedule` | boolean | `true` | Show schedule controls |
+| `show_humidity` | boolean | `true` | Show humidity information |
+| `temperature_unit` | string | `"°F"` | Temperature unit display |
+| `theme` | string | `"default"` | Card theme |
+
+## Advanced Features
+
+### Automatic Scheduling
+
+Set up intelligent temperature schedules:
+
 ```yaml
-type: custom:enhanced-thermostat-card
-entity: climate.enhanced_living_room_thermostat
-name: "Living Room Thermostat"
+# In your automations.yaml or through the UI
+- alias: "Morning Warmup"
+  trigger:
+    - platform: time
+      at: "06:00:00"
+  action:
+    - service: enhanced_zwave_thermostat.set_schedule
+      target:
+        entity_id: climate.living_room_thermostat
+      data:
+        temperature: 72
+        hold_until: "08:00:00"
 ```
 
-## 📱 Using the Scheduling
+### Service Calls
 
-1. **Click "Add Schedule"** in the card
-2. **Fill in the details:**
-   - Schedule name (optional)
-   - Select days of the week
-   - Set time (24-hour format like 07:00)
-   - Set target temperature
-3. **Click "Save Schedule"**
-4. **Schedules apply automatically** when conditions match
+The integration provides several custom services:
 
-## 🔧 Requirements
+#### `enhanced_zwave_thermostat.set_schedule`
+Set a temporary schedule override.
 
-- Home Assistant 2024.3.0 or newer
-- Z-Wave JS integration with thermostat devices
-- Modern browser with ES2020 support
+#### `enhanced_zwave_thermostat.clear_schedule`
+Clear all schedule overrides.
 
-## 🆘 Troubleshooting
+#### `enhanced_zwave_thermostat.force_update`
+Force an immediate state refresh.
+
+## Troubleshooting
+
+### Card Not Loading
+If you see "Custom element doesn't exist: enhanced-thermostat-card":
+
+1. Check that the resource is properly registered:
+   - Settings → Dashboards → Resources
+   - Verify `/local/enhanced-thermostat-card.js` is listed
+
+2. Clear your browser cache:
+   - Press Ctrl+F5 (or Cmd+Shift+R on Mac)
+   - Or disable cache in browser dev tools
+
+3. Check browser console for errors:
+   - Press F12 → Console tab
+   - Look for JavaScript errors
 
 ### Integration Not Found
-- Ensure Z-Wave JS integration is installed and working
-- Restart Home Assistant after installation
-- Check logs in Settings > System > Logs
+1. Verify the files are in the correct location:
+   ```
+   /config/custom_components/enhanced_zwave_thermostat/
+   ```
 
-### Card Not Appearing
-- Verify the resource was added correctly
-- Hard refresh browser (Ctrl+F5)
-- Check browser console for errors
+2. Check Home Assistant logs:
+   - Settings → System → Logs
+   - Look for "enhanced_zwave_thermostat" entries
 
-### Schedules Not Working
-- Ensure thermostat is in "schedule" preset mode
-- Check Home Assistant logs for error messages
-- Verify all form fields were filled correctly
+3. Restart Home Assistant completely
 
-## 📄 License
+### Z-Wave Thermostat Not Detected
+1. Ensure your Z-Wave integration is working
+2. Check that your thermostat appears in Z-Wave JS UI
+3. Verify the device is properly included in your Z-Wave network
 
-MIT License - Feel free to use, modify, and distribute
+## Development
+
+### Local Development Setup
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/BKDude/ha-enhanced-zwave-thermostat.git
+   cd ha-enhanced-zwave-thermostat
+   ```
+
+2. **Install development dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Run tests**:
+   ```bash
+   python -m pytest tests/
+   ```
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/BKDude/ha-enhanced-zwave-thermostat/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/BKDude/ha-enhanced-zwave-thermostat/discussions)
+- **Home Assistant Community**: [Forum Thread](https://community.home-assistant.io/)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Changelog
+
+### v1.0.0
+- Initial release
+- Basic thermostat control
+- Custom Lovelace card
+- Schedule management
+- HACS support

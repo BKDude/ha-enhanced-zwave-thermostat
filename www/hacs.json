@@ -1,0 +1,7 @@
+{
+  "name": "Enhanced Z-Wave Thermostat Card",
+  "content_in_root": true,
+  "render_readme": false,
+  "homeassistant": "2024.3.0",
+  "filename": "enhanced-thermostat-card.js"
+}

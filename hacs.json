@@ -1,9 +1,8 @@
 {
-  "name": "Enhanced Z-Wave Thermostat (Complete)",
+  "name": "Enhanced Z-Wave Thermostat",
   "content_in_root": false,
   "render_readme": true,
   "homeassistant": "2024.3.0",
   "domains": ["climate"],
-  "country": ["US", "CA", "GB", "DE", "AU"],
   "iot_class": "Local Polling"
 }

@@ -88,8 +88,13 @@ def main():
         print("1. Restart Home Assistant")
         print("2. Go to Settings > Devices & Services")
         print("3. Click 'Add Integration' and search for 'Enhanced Z-Wave Thermostat'")
-        print("4. Add the card resource: /local/enhanced-thermostat-card.js (JavaScript Module)")
-        print("5. Add the card to your dashboard")
+        print("4. Add the card resource:")
+        print("   - Go to Settings > Dashboards > Resources")
+        print("   - Click '+ Add Resource'")
+        print("   - URL: /local/enhanced-thermostat-card.js")
+        print("   - Type: JavaScript Module")
+        print("5. Hard refresh browser (Ctrl+F5)")
+        print("6. Add the card to your dashboard")
         
     except Exception as e:
         print(f"❌ Installation failed: {e}")
