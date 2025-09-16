@@ -56,6 +56,9 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
             try:
                 # Validate selected entity
                 selected_entity = user_input.get(CONF_SELECTED_CLIMATE_ENTITY)
+                _LOGGER.info("Config flow received user input: %s", user_input)
+                _LOGGER.info("Selected entity: %s", selected_entity)
+                
                 if not selected_entity:
                     errors["base"] = "no_entity_selected"
                     _LOGGER.warning("No climate entity selected")
@@ -63,6 +66,8 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
                     # Check if entity exists and is valid
                     entity_registry = er.async_get(self.hass)
                     entity_entry = entity_registry.async_get(selected_entity)
+                    
+                    _LOGGER.info("Entity registry lookup for %s: %s", selected_entity, entity_entry)
                     
                     if not entity_entry:
                         errors["base"] = "entity_not_found"
@@ -72,6 +77,8 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
                         _LOGGER.error("Selected entity %s is not a climate entity (domain: %s, platform: %s)", 
                                     selected_entity, entity_entry.domain, entity_entry.platform)
                     else:
+                        _LOGGER.info("Entity validation passed for %s (domain: %s, platform: %s)", 
+                                   selected_entity, entity_entry.domain, entity_entry.platform)
                         # Check if this entity is already configured
                         await self._check_existing_entries(selected_entity, errors)
                         
