@@ -1,7 +1,15 @@
-"""Services for Enhanced Z-Wave Thermostat."""
+"""Services for Enhanced Z-Wave Thermostat.
+
+Initial simple schedule service expanded with:
+ - Unique schedule IDs
+ - get_schedules service
+ - Next setpoint calculation event
+ - Central helpers for other modules (climate entity attributes)
+"""
 import logging
-from datetime import datetime, time
-from typing import Any, Dict, List
+from datetime import datetime, time, timedelta
+from typing import Any, Dict, List, Optional
+import uuid
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -14,14 +22,24 @@ from .const import (
     SERVICE_SET_SCHEDULE,
     SERVICE_SET_HOME_AWAY,
     SERVICE_OVERRIDE_SAFETY,
+    SERVICE_DEBUG_INFO,
+    SERVICE_GET_SCHEDULES,
+    SERVICE_UPDATE_SCHEDULE,
+    SERVICE_DELETE_SCHEDULE,
+    SERVICE_TOGGLE_SCHEDULE,
+    SERVICE_SET_HOLD,
+    SERVICE_CLEAR_HOLD,
     ATTR_SCHEDULE,
     ATTR_HOME_AWAY_MODE,
     ATTR_ZONE_ID,
+    EVENT_SCHEDULE_UPDATED,
+    EVENT_NEXT_SETPOINT,
+    EVENT_HOLD_CHANGED,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-STORAGE_VERSION = 1
+STORAGE_VERSION = 2
 STORAGE_KEY = f"{DOMAIN}_schedules"
 
 # Service schemas
@@ -52,67 +70,204 @@ DEBUG_INFO_SCHEMA = vol.Schema({
 
 
 class ScheduleManager:
-    """Manage thermostat schedules."""
-    
+    """Manage thermostat schedules and holds."""
+
     def __init__(self, hass: HomeAssistant):
-        """Initialize the schedule manager."""
         self.hass = hass
         self._store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._schedules: Dict[str, List[Dict[str, Any]]] = {}
-        
+        self._holds: Dict[str, Dict[str, Any]] = {}
+
     async def async_load(self) -> None:
-        """Load schedules from storage."""
         data = await self._store.async_load()
         if data:
             self._schedules = data.get("schedules", {})
-        _LOGGER.info("Loaded %d thermostat schedules", len(self._schedules))
-        
+            self._holds = data.get("holds", {})
+        changed = False
+        for eid, items in self._schedules.items():
+            for sch in items:
+                if "id" not in sch:
+                    sch["id"] = uuid.uuid4().hex
+                    changed = True
+        if changed:
+            await self.async_save()
+        _LOGGER.info("Loaded schedules for %d entities (%d holds)", len(self._schedules), len(self._holds))
+
     async def async_save(self) -> None:
-        """Save schedules to storage."""
-        await self._store.async_save({"schedules": self._schedules})
-        _LOGGER.debug("Saved thermostat schedules")
-        
-    async def async_set_schedule(self, entity_id: str, schedule: Dict[str, Any]) -> None:
-        """Set a schedule for an entity."""
-        if entity_id not in self._schedules:
-            self._schedules[entity_id] = []
-            
-        # Add schedule entry
-        schedule_entry = {
+        await self._store.async_save({"schedules": self._schedules, "holds": self._holds})
+
+    def list(self, entity_id: str) -> List[Dict[str, Any]]:
+        return self._schedules.get(entity_id, [])
+
+    async def async_add(self, entity_id: str, schedule: Dict[str, Any]) -> Dict[str, Any]:
+        self._schedules.setdefault(entity_id, [])
+        entry = {
+            "id": uuid.uuid4().hex,
             "weekdays": schedule["weekdays"],
-            "time": schedule["time"].strftime("%H:%M"),
+            # already validated format HH:MM (string), keep as string
+            "time": schedule["time"],
             "temperature": schedule["temperature"],
-            "name": schedule.get("name", f"Schedule {len(self._schedules[entity_id]) + 1}"),
+            "name": schedule.get("name") or f"Schedule {len(self._schedules[entity_id]) + 1}",
             "enabled": True,
             "created": datetime.now().isoformat(),
         }
-        
-        self._schedules[entity_id].append(schedule_entry)
+        self._schedules[entity_id].append(entry)
         await self.async_save()
-        
-        _LOGGER.info("Added schedule for %s: %s", entity_id, schedule_entry)
-        
-    def get_schedules(self, entity_id: str) -> List[Dict[str, Any]]:
-        """Get schedules for an entity."""
-        return self._schedules.get(entity_id, [])
-        
-    def get_current_scheduled_temperature(self, entity_id: str) -> float | None:
-        """Get the current scheduled temperature for an entity."""
-        schedules = self.get_schedules(entity_id)
-        current_time = datetime.now().time()
-        current_weekday = datetime.now().strftime("%A").lower()
-        
-        # Find matching schedule for current time and day
-        for schedule in schedules:
-            if not schedule.get("enabled", True):
+        return entry
+
+    def current_match(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        """Return latest schedule whose time has passed today for current weekday."""
+        items = self.list(entity_id)
+        if not items:
+            return None
+        now = datetime.now()
+        weekday = now.strftime("%A").lower()
+        current_time = now.time()
+        candidates: List[Dict[str, Any]] = []
+        for s in items:
+            if not s.get("enabled", True):
                 continue
-                
-            schedule_time = datetime.strptime(schedule["time"], "%H:%M").time()
-            weekdays = [day.lower() for day in schedule["weekdays"]]
-            
-            if current_weekday in weekdays and current_time >= schedule_time:
-                return schedule["temperature"]
-                
+            if weekday not in [d.lower() for d in s.get("weekdays", [])]:
+                continue
+            try:
+                schedule_time = datetime.strptime(s["time"], "%H:%M").time()
+            except ValueError:
+                continue
+            if current_time >= schedule_time:
+                candidates.append((schedule_time, s))
+        if not candidates:
+            return None
+        # pick latest time
+        candidates.sort(key=lambda x: x[0])
+        return candidates[-1][1]
+
+    def next_setpoint(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        """Compute next setpoint later today or tomorrow."""
+        items = self.list(entity_id)
+        if not items:
+            return None
+        now = datetime.now()
+        weekday_index = now.weekday()  # Monday=0
+        # Build sequence of next 2 days to find next future time
+        for day_offset in range(0, 2):
+            check_date = now + timedelta(days=day_offset)
+            wd = check_date.strftime("%A").lower()
+            future: List[tuple[datetime, Dict[str, Any]]] = []
+            for s in items:
+                if not s.get("enabled", True):
+                    continue
+                if wd not in [d.lower() for d in s.get("weekdays", [])]:
+                    continue
+                try:
+                    schedule_time = datetime.strptime(s["time"], "%H:%M").time()
+                except ValueError:
+                    continue
+                candidate_dt = datetime.combine(check_date.date(), schedule_time)
+                if candidate_dt > now:
+                    future.append((candidate_dt, s))
+            if future:
+                future.sort(key=lambda x: x[0])
+                dt, sched = future[0]
+                return {
+                    "time": dt.isoformat(),
+                    "temperature": sched["temperature"],
+                    "schedule_id": sched["id"],
+                    "name": sched.get("name"),
+                }
+        return None
+
+    def as_dict(self, entity_id: str) -> Dict[str, Any]:
+        return {"schedules": self.list(entity_id), "hold": self.active_hold(entity_id)}
+
+    def _find(self, entity_id: str, schedule_id: str) -> Optional[Dict[str, Any]]:
+        for s in self.list(entity_id):
+            if s.get("id") == schedule_id:
+                return s
+        return None
+
+    async def async_update(self, entity_id: str, schedule_id: str, **changes) -> Optional[Dict[str, Any]]:
+        sched = self._find(entity_id, schedule_id)
+        if not sched:
+            return None
+        for key in ("weekdays", "time", "temperature", "name"):
+            if key in changes and changes[key] is not None:
+                sched[key] = changes[key]
+        sched["updated"] = datetime.now().isoformat()
+        await self.async_save()
+        return sched
+
+    async def async_delete(self, entity_id: str, schedule_id: str) -> bool:
+        items = self.list(entity_id)
+        new_items = [s for s in items if s.get("id") != schedule_id]
+        if len(new_items) == len(items):
+            return False
+        self._schedules[entity_id] = new_items
+        await self.async_save()
+        return True
+
+    async def async_toggle(self, entity_id: str, schedule_id: str, enabled: bool) -> Optional[Dict[str, Any]]:
+        sched = self._find(entity_id, schedule_id)
+        if not sched:
+            return None
+        sched["enabled"] = enabled
+        sched["updated"] = datetime.now().isoformat()
+        await self.async_save()
+        return sched
+
+    async def async_set_hold(self, entity_id: str, mode: str, temperature: float, until: Optional[str]) -> Dict[str, Any]:
+        hold = {
+            "mode": mode,
+            "temperature": temperature,
+            "until": until,
+            "created": datetime.now().isoformat(),
+        }
+        self._holds[entity_id] = hold
+        await self.async_save()
+        return hold
+
+    async def async_clear_hold(self, entity_id: str) -> None:
+        if entity_id in self._holds:
+            self._holds.pop(entity_id)
+            await self.async_save()
+
+    def active_hold(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        hold = self._holds.get(entity_id)
+        if not hold:
+            return None
+        until = hold.get("until")
+        if until:
+            try:
+                if datetime.fromisoformat(until) < datetime.now():
+                    # Expired hold – remove and persist asynchronously
+                    self._holds.pop(entity_id, None)
+                    # Fire-and-forget save (don't block attribute reads)
+                    self.hass.async_create_task(self.async_save())
+                    return None
+            except ValueError:
+                return hold
+        return hold
+
+    # Added to satisfy climate entity usage and unify schedule/hold precedence
+    def get_current_scheduled_temperature(self, entity_id: str) -> Optional[float]:
+        """Return the effective target temperature now (hold overrides schedule).
+
+        Precedence:
+        1. Active hold (temporary or permanent)
+        2. Latest matching schedule for today whose time has passed
+        3. None (no change)
+        """
+        hold = self.active_hold(entity_id)
+        if hold:
+            try:
+                return float(hold.get("temperature"))
+            except (TypeError, ValueError):  # defensive
+                pass
+        match = self.current_match(entity_id)
+        if match:
+            try:
+                return float(match.get("temperature"))
+            except (TypeError, ValueError):
+                return None
         return None
 
 
@@ -147,27 +302,115 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 _LOGGER.error("Invalid time format '%s': %s", time_str, e)
                 raise ValueError(f"Invalid time format '{time_str}'. Use HH:MM format.")
             
-            await schedule_manager.async_set_schedule(entity_id, schedule)
-            
-            # Notify the entity about the new schedule
+            added = await schedule_manager.async_add(entity_id, schedule)
+
+            # Fire update event
             entity_registry = er.async_get(hass)
             entity_entry = entity_registry.async_get(entity_id)
             
             if entity_entry and entity_entry.platform == DOMAIN:
-                # Trigger an update on the entity
-                state = hass.states.get(entity_id)
-                if state:
+                hass.bus.async_fire(
+                    EVENT_SCHEDULE_UPDATED,
+                    {"entity_id": entity_id, "change": "added", "schedule": added},
+                )
+                # Also compute next setpoint
+                next_sp = schedule_manager.next_setpoint(entity_id)
+                if next_sp:
                     hass.bus.async_fire(
-                        f"{DOMAIN}_schedule_updated",
-                        {"entity_id": entity_id, "schedule": schedule}
+                        EVENT_NEXT_SETPOINT,
+                        {"entity_id": entity_id, **next_sp},
                     )
-                    _LOGGER.info("Schedule created successfully for %s", entity_id)
+                _LOGGER.info("Schedule created successfully for %s", entity_id)
             else:
                 _LOGGER.warning("Entity %s not found or not from this integration", entity_id)
-                
         except Exception as e:
             _LOGGER.error("Failed to create schedule: %s", e)
             raise
+
+    async def async_get_schedules(call: ServiceCall) -> None:
+        """Return schedules via an event response (simple pattern)."""
+        entity_id = call.data.get("entity_id")
+        if not entity_id:
+            _LOGGER.error("get_schedules requires entity_id")
+            return
+        data = schedule_manager.as_dict(entity_id)
+        hass.bus.async_fire(
+            EVENT_SCHEDULE_UPDATED,
+            {"entity_id": entity_id, "change": "queried", **data},
+        )
+
+    async def async_update_schedule(call: ServiceCall) -> None:
+        entity_id = call.data.get("entity_id")
+        schedule_id = call.data.get("schedule_id")
+        if not entity_id or not schedule_id:
+            _LOGGER.error("update_schedule requires entity_id and schedule_id")
+            return
+        sched = await schedule_manager.async_update(
+            entity_id,
+            schedule_id,
+            weekdays=call.data.get("weekdays"),
+            time=call.data.get("time"),
+            temperature=call.data.get("temperature"),
+            name=call.data.get("name"),
+        )
+        if not sched:
+            _LOGGER.warning("Schedule %s not found for %s", schedule_id, entity_id)
+            return
+        hass.bus.async_fire(
+            EVENT_SCHEDULE_UPDATED,
+            {"entity_id": entity_id, "change": "updated", "schedule": sched},
+        )
+
+    async def async_delete_schedule(call: ServiceCall) -> None:
+        entity_id = call.data.get("entity_id")
+        schedule_id = call.data.get("schedule_id")
+        if not entity_id or not schedule_id:
+            _LOGGER.error("delete_schedule requires entity_id and schedule_id")
+            return
+        removed = await schedule_manager.async_delete(entity_id, schedule_id)
+        if removed:
+            hass.bus.async_fire(
+                EVENT_SCHEDULE_UPDATED,
+                {"entity_id": entity_id, "change": "deleted", "schedule_id": schedule_id},
+            )
+        else:
+            _LOGGER.warning("Schedule %s not removed (not found) for %s", schedule_id, entity_id)
+
+    async def async_toggle_schedule(call: ServiceCall) -> None:
+        entity_id = call.data.get("entity_id")
+        schedule_id = call.data.get("schedule_id")
+        enabled = call.data.get("enabled")
+        if not entity_id or schedule_id is None or enabled is None:
+            _LOGGER.error("toggle_schedule requires entity_id, schedule_id, enabled")
+            return
+        sched = await schedule_manager.async_toggle(entity_id, schedule_id, bool(enabled))
+        if sched:
+            hass.bus.async_fire(
+                EVENT_SCHEDULE_UPDATED,
+                {"entity_id": entity_id, "change": "toggled", "schedule": sched},
+            )
+
+    async def async_set_hold(call: ServiceCall) -> None:
+        entity_id = call.data.get("entity_id")
+        mode = call.data.get("mode", "temporary")
+        temperature = call.data.get("temperature")
+        until = call.data.get("until")
+        if temperature is None:
+            _LOGGER.error("set_hold requires temperature")
+            return
+        hold = await schedule_manager.async_set_hold(entity_id, mode, float(temperature), until)
+        hass.bus.async_fire(
+            EVENT_HOLD_CHANGED,
+            {"entity_id": entity_id, "change": "set", "hold": hold},
+        )
+
+    async def async_clear_hold(call: ServiceCall) -> None:
+        entity_id = call.data.get("entity_id")
+        await schedule_manager.async_clear_hold(entity_id)
+        hass.bus.async_fire(
+            EVENT_HOLD_CHANGED,
+            {"entity_id": entity_id, "change": "cleared"},
+        )
     
     async def async_set_home_away(call: ServiceCall) -> None:
         """Handle set_home_away service call."""
@@ -304,7 +547,64 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     
     hass.services.async_register(
         DOMAIN,
-        "debug_info",
+        SERVICE_GET_SCHEDULES,
+        async_get_schedules,
+        schema=vol.Schema({vol.Required("entity_id"): cv.entity_id}),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPDATE_SCHEDULE,
+        async_update_schedule,
+        schema=vol.Schema({
+            vol.Required("entity_id"): cv.entity_id,
+            vol.Required("schedule_id"): cv.string,
+            vol.Optional("weekdays"): [cv.string],
+            vol.Optional("time"): cv.string,
+            vol.Optional("temperature"): vol.Coerce(float),
+            vol.Optional("name"): cv.string,
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DELETE_SCHEDULE,
+        async_delete_schedule,
+        schema=vol.Schema({
+            vol.Required("entity_id"): cv.entity_id,
+            vol.Required("schedule_id"): cv.string,
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_TOGGLE_SCHEDULE,
+        async_toggle_schedule,
+        schema=vol.Schema({
+            vol.Required("entity_id"): cv.entity_id,
+            vol.Required("schedule_id"): cv.string,
+            vol.Required("enabled"): cv.boolean,
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_HOLD,
+        async_set_hold,
+        schema=vol.Schema({
+            vol.Required("entity_id"): cv.entity_id,
+            vol.Required("temperature"): vol.Coerce(float),
+            vol.Optional("mode", default="temporary"): vol.In(["temporary", "permanent"]),
+            vol.Optional("until"): cv.string,
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CLEAR_HOLD,
+        async_clear_hold,
+        schema=vol.Schema({vol.Required("entity_id"): cv.entity_id}),
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DEBUG_INFO,
         async_debug_info,
         schema=DEBUG_INFO_SCHEMA,
     )

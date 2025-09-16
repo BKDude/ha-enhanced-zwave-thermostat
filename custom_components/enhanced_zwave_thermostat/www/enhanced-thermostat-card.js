@@ -388,8 +388,13 @@ let EnhancedThermostatCard = class EnhancedThermostatCard extends i {
         }
         const currentTemp = entity.attributes.current_temperature || 0;
         const targetTemp = entity.attributes.temperature || 0;
-        const hvacMode = entity.state;
+        // Normalize HVAC mode (underlying entity may report heat_cool)
+        const hvacMode = entity.state === 'heat_cool' ? 'auto' : entity.state;
         const presetMode = entity.attributes.preset_mode;
+        // Pull schedules from attributes if provided
+        if (entity.attributes.enhanced_schedules && Array.isArray(entity.attributes.enhanced_schedules)) {
+          this.schedules = entity.attributes.enhanced_schedules;
+        }
         return x `
       <div class="card-content">
         <div class="thermostat-display">
@@ -419,7 +424,7 @@ let EnhancedThermostatCard = class EnhancedThermostatCard extends i {
         </div>
 
         <div class="mode-controls">
-          ${['home', 'away'].map(preset => x `
+          ${['home', 'away', 'schedule'].map(preset => x `
             <button 
               class="mode-button ${presetMode === preset ? 'active' : ''}"
               @click=${() => this._setPresetMode(preset)}
@@ -439,12 +444,12 @@ let EnhancedThermostatCard = class EnhancedThermostatCard extends i {
           <div class="schedule-list">
             ${this.schedules.length === 0
             ? x `<div>No schedules configured</div>`
-            : this.schedules.map((schedule, index) => x `
+            : this.schedules.map((schedule) => x `
                   <div class="schedule-item">
                     <div class="schedule-info">
                       <div class="schedule-name">${schedule.name || 'Schedule'}</div>
                       <div class="schedule-details">
-                        ${schedule.weekdays.join(', ')} at ${schedule.time}
+                        ${Array.isArray(schedule.weekdays) ? schedule.weekdays.join(', ') : ''} at ${schedule.time}
                       </div>
                     </div>
                     <div class="schedule-temp">${schedule.temperature}°</div>

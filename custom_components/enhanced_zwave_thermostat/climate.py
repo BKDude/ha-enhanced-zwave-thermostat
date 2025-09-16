@@ -23,7 +23,17 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers import entity_registry as er, device_registry as dr
 
-from .const import DOMAIN, CONF_SELECTED_CLIMATE_ENTITY
+from .const import (
+    DOMAIN,
+    CONF_SELECTED_CLIMATE_ENTITY,
+    ATTR_NEXT_SETPOINT_TIME,
+    ATTR_NEXT_SETPOINT_TEMP,
+    ATTR_SCHEDULES_COUNT,
+    ATTR_ENHANCED_SCHEDULES,
+    ATTR_HOLD_MODE,
+    ATTR_HOLD_UNTIL,
+    ATTR_HOLD_TEMPERATURE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -203,13 +213,33 @@ class EnhancedZWaveThermostat(ClimateEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return extra state attributes."""
-        return {
+        attrs: dict[str, Any] = {
             "safety_min_temp": self._safety_min_temp,
             "safety_max_temp": self._safety_max_temp,
             "home_temp": self._home_temp,
             "away_temp": self._away_temp,
             "schedule_enabled": self._schedule_enabled,
         }
+        # Pull schedule manager for next setpoint details
+        sched_mgr = self.hass.data.get(DOMAIN, {}).get("schedule_manager")
+        if sched_mgr:
+            try:
+                schedules = sched_mgr.list(self.entity_id)
+                next_sp = sched_mgr.next_setpoint(self.entity_id)
+                hold = sched_mgr.active_hold(self.entity_id)
+                attrs[ATTR_SCHEDULES_COUNT] = len(schedules)
+                # Provide raw schedules list for frontend consumption
+                attrs[ATTR_ENHANCED_SCHEDULES] = schedules
+                if next_sp:
+                    attrs[ATTR_NEXT_SETPOINT_TIME] = next_sp.get("time")
+                    attrs[ATTR_NEXT_SETPOINT_TEMP] = next_sp.get("temperature")
+                if hold:
+                    attrs[ATTR_HOLD_MODE] = hold.get("mode")
+                    attrs[ATTR_HOLD_UNTIL] = hold.get("until")
+                    attrs[ATTR_HOLD_TEMPERATURE] = hold.get("temperature")
+            except Exception:  # noqa: E722 - defensive
+                pass
+        return attrs
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""

@@ -33,12 +33,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         
         # Set up services (skip if running in test mode)
         if not getattr(hass, "_test_mode", False):
-            try:
-                from .services import async_setup_services
-                await async_setup_services(hass)
-            except Exception as service_err:
-                _LOGGER.warning("Could not setup services: %s", service_err)
-                # Don't fail the whole setup if services fail
+            # Register services only once (first config entry)
+            if not hass.data[DOMAIN].get("services_registered"):
+                try:
+                    from .services import async_setup_services
+                    await async_setup_services(hass)
+                    hass.data[DOMAIN]["services_registered"] = True
+                except Exception as service_err:
+                    _LOGGER.warning("Could not setup services: %s", service_err)
+                    # Don't fail the whole setup if services fail
         
         # Forward the setup to the climate platform
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -115,7 +118,7 @@ async def _register_card_resource(hass: HomeAssistant) -> None:
                 "**Next step**: Add the Lovelace card resource:\n"
                 "1. Go to Settings → Dashboards → Resources\n"
                 "2. Click '+ Add Resource'\n"
-                "3. URL: `/local/enhanced-thermostat-card.js`\n"
+                "3. URL: `/local/enhanced-thermostat-card.js?v=1.1.0`\n"
                 "4. Type: JavaScript Module\n"
                 "5. Click 'Create'\n\n"
                 "Then you can add the card to your dashboard!"
