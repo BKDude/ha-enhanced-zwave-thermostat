@@ -21,9 +21,6 @@
       "no_climate_entities": "No climate entities found in your Home Assistant setup. Please ensure you have climate devices configured first.",
       "invalid_temp_range": "Minimum temperature must be less than maximum temperature.",
       "unknown_error": "An unexpected error occurred. Please check the logs for more details."
-    },
-    "abort": {
-      "already_configured": "This configuration already exists."
     }
   },
   "options": {

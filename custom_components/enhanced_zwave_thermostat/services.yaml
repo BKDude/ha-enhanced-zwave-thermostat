@@ -1,0 +1,82 @@
+set_schedule:
+  name: Set Thermostat Schedule
+  description: Set a schedule for the thermostat
+  fields:
+    entity_id:
+      name: Entity ID
+      description: The entity ID of the thermostat
+      required: true
+      selector:
+        entity:
+          domain: climate
+    schedule:
+      name: Schedule
+      description: Schedule configuration
+      required: true
+      selector:
+        object:
+
+set_home_away:
+  name: Set Home/Away Mode
+  description: Set the thermostat to home or away mode
+  fields:
+    entity_id:
+      name: Entity ID
+      description: The entity ID of the thermostat
+      required: true
+      selector:
+        entity:
+          domain: climate
+    home_away_mode:
+      name: Home/Away Mode
+      description: Set to home or away mode
+      required: true
+      selector:
+        select:
+          options:
+            - "home"
+            - "away"
+
+override_safety:
+  name: Override Safety Limits
+  description: Temporarily override safety temperature limits
+  fields:
+    entity_id:
+      name: Entity ID
+      description: The entity ID of the thermostat
+      required: true
+      selector:
+        entity:
+          domain: climate
+    temperature:
+      name: Temperature
+      description: Target temperature for override
+      required: true
+      selector:
+        number:
+          min: 32
+          max: 100
+          step: 1
+          unit_of_measurement: "°F"
+    duration:
+      name: Duration
+      description: Duration in minutes (default 60)
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          unit_of_measurement: "minutes"
+
+debug_info:
+  name: Debug Information
+  description: Log detailed debug information about climate entities and integration state
+  fields:
+    entity_id:
+      name: Entity ID (Optional)
+      description: Optional specific entity to debug
+      required: false
+      selector:
+        entity:
+          domain: climate

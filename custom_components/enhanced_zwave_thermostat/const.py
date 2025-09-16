@@ -22,6 +22,7 @@ DEFAULT_AWAY_TEMP = 65
 SERVICE_SET_SCHEDULE = "set_schedule"
 SERVICE_SET_HOME_AWAY = "set_home_away"
 SERVICE_OVERRIDE_SAFETY = "override_safety"
+SERVICE_DEBUG_INFO = "debug_info"
 
 # Attributes
 ATTR_SCHEDULE = "schedule"

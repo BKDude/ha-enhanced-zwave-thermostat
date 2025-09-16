@@ -46,6 +46,10 @@ OVERRIDE_SAFETY_SCHEMA = vol.Schema({
     vol.Optional("duration"): vol.Coerce(int),  # Minutes
 })
 
+DEBUG_INFO_SCHEMA = vol.Schema({
+    vol.Optional("entity_id"): cv.entity_id,
+})
+
 
 class ScheduleManager:
     """Manage thermostat schedules."""
@@ -195,6 +199,87 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         # This would implement temporary safety override logic
         # For now, just log the request
         
+    async def async_debug_info(call: ServiceCall) -> None:
+        """Handle debug_info service call to help troubleshoot issues."""
+        entity_registry = er.async_get(hass)
+        
+        # Get all climate entities
+        climate_entities = [
+            entry for entry in entity_registry.entities.values()
+            if entry.domain == "climate"
+            and not entry.disabled_by
+            and not entry.hidden_by
+        ]
+        
+        # Get enhanced thermostat entities
+        enhanced_entities = [
+            entry for entry in entity_registry.entities.values()
+            if entry.platform == DOMAIN
+        ]
+        
+        debug_info = {
+            "climate_entities_found": len(climate_entities),
+            "climate_entities": [
+                {
+                    "entity_id": e.entity_id,
+                    "name": e.name or e.original_name,
+                    "platform": e.platform,
+                    "device_id": e.device_id,
+                    "disabled": bool(e.disabled_by),
+                    "hidden": bool(e.hidden_by),
+                }
+                for e in climate_entities
+            ],
+            "enhanced_thermostat_entities": len(enhanced_entities),
+            "enhanced_entities": [
+                {
+                    "entity_id": e.entity_id,
+                    "name": e.name or e.original_name,
+                    "platform": e.platform,
+                    "device_id": e.device_id,
+                }
+                for e in enhanced_entities
+            ],
+            "integration_entries": len(hass.config_entries.async_entries(DOMAIN)),
+            "entries": [
+                {
+                    "entry_id": entry.entry_id,
+                    "title": entry.title,
+                    "data": entry.data,
+                    "state": entry.state,
+                }
+                for entry in hass.config_entries.async_entries(DOMAIN)
+            ]
+        }
+        
+        _LOGGER.info("Enhanced Z-Wave Thermostat Debug Info: %s", debug_info)
+        
+        # Also log to a specific debug service call
+        _LOGGER.info("=== ENHANCED Z-WAVE THERMOSTAT DEBUG ===")
+        _LOGGER.info("Climate entities found: %d", len(climate_entities))
+        for entity in climate_entities:
+            _LOGGER.info(
+                "  - %s (%s) [%s] disabled=%s hidden=%s",
+                entity.entity_id,
+                entity.name or entity.original_name or "No Name",
+                entity.platform,
+                bool(entity.disabled_by),
+                bool(entity.hidden_by)
+            )
+        
+        _LOGGER.info("Enhanced thermostat entities: %d", len(enhanced_entities))
+        for entity in enhanced_entities:
+            _LOGGER.info("  - %s (%s)", entity.entity_id, entity.name or entity.original_name)
+            
+        _LOGGER.info("Config entries: %d", len(hass.config_entries.async_entries(DOMAIN)))
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            _LOGGER.info("  - %s: %s (state: %s)", entry.entry_id, entry.title, entry.state)
+            _LOGGER.info("    Data: %s", entry.data)
+        
+        _LOGGER.info("=== END DEBUG INFO ===")
+        
+        return debug_info
+        
     # Register services
     hass.services.async_register(
         DOMAIN,
@@ -215,6 +300,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         SERVICE_OVERRIDE_SAFETY,
         async_override_safety,
         schema=OVERRIDE_SAFETY_SCHEMA,
+    )
+    
+    hass.services.async_register(
+        DOMAIN,
+        "debug_info",
+        async_debug_info,
+        schema=DEBUG_INFO_SCHEMA,
     )
     
     _LOGGER.info("Enhanced Z-Wave Thermostat services registered")
