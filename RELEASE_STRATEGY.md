@@ -2,14 +2,15 @@
 
 ## GitHub Repository Setup
 
-1. **Create Repository**
-   - Repository name: `enhanced-zwave-thermostat-complete`
-   - Make it public
-   - Initialize with README.md (use the existing one)
+1. **Repository Created** ✅
+   - Repository name: `ha-enhanced-zwave-thermostat`
+   - Owner: `BKDude`
+   - URL: https://github.com/BKDude/ha-enhanced-zwave-thermostat
+   - Status: Public ✅
 
-2. **Update URLs in Manifest**
-   - Replace `YOUR_USERNAME` in `manifest.json` with your GitHub username
-   - Replace `YOUR_USERNAME` in `@YOUR_USERNAME` codeowners with your GitHub username
+2. **URLs Updated** ✅
+   - manifest.json updated with correct GitHub URLs
+   - Codeowner set to @BKDude
 
 ## Release Process
 
@@ -21,7 +22,7 @@
    git add .
    git commit -m "Initial release v1.0.0 - Enhanced Z-Wave Thermostat"
    git branch -M main
-   git remote add origin https://github.com/YOUR_USERNAME/enhanced-zwave-thermostat-complete.git
+   git remote add origin https://github.com/BKDude/ha-enhanced-zwave-thermostat.git
    git push -u origin main
    ```
 
@@ -80,7 +81,7 @@
 ### Method 2: Custom Repository (Immediate)
 Users can add your repository manually:
 1. HACS > Integrations > ⋮ > Custom repositories
-2. Repository: `https://github.com/YOUR_USERNAME/enhanced-zwave-thermostat-complete`
+2. Repository: `https://github.com/BKDude/ha-enhanced-zwave-thermostat`
 3. Category: Integration
 4. Add and install
 
@@ -96,7 +97,7 @@ Users can add your repository manually:
 ## Quality Checklist
 
 Before releasing:
-- [ ] Update GitHub URLs in manifest.json
+- [x] Update GitHub URLs in manifest.json
 - [ ] Test installation on clean Home Assistant instance
 - [ ] Verify HACS installation works
 - [ ] Check all documentation links

@@ -6,7 +6,20 @@ This package includes both the Enhanced Z-Wave Thermostat integration and the be
 
 ## ⚡ Quick Install Options
 
-### Option 1: Automated Script (Recommended)
+### Option 1: HACS (Recommended)
+
+1. **Add Custom Repository:**
+   - Go to HACS > Integrations > ⋮ (three dots) > Custom repositories
+   - Repository: `https://github.com/BKDude/ha-enhanced-zwave-thermostat`
+   - Category: Integration
+   - Click Add
+
+2. **Install Integration:**
+   - Search for "Enhanced Z-Wave Thermostat" in HACS
+   - Click Install
+   - Restart Home Assistant
+
+### Option 2: Automated Script
 
 **Linux/macOS/Docker:**
 ```bash
@@ -19,7 +32,7 @@ This package includes both the Enhanced Z-Wave Thermostat integration and the be
 python install.py
 ```
 
-### Option 2: Manual Installation
+### Option 3: Manual Installation
 
 1. Copy `custom_components/enhanced_zwave_thermostat/` to your HA `custom_components/` folder
 2. Copy `www/enhanced-thermostat-card.js` to your HA `www/` folder
