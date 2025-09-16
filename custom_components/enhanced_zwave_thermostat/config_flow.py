@@ -5,10 +5,12 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import entity_registry as er
+from homeassistant.const import Platform
 
 from .const import (
     DOMAIN,
-    CONF_THERMOSTATS,
+    CONF_SELECTED_CLIMATE_ENTITY,
     CONF_SAFETY_MIN_TEMP,
     CONF_SAFETY_MAX_TEMP,
     CONF_HOME_TEMP,
@@ -27,12 +29,45 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
 
     VERSION = 1
 
+    def __init__(self):
+        """Initialize the config flow."""
+        self._selected_entity = None
+
     async def async_step_user(self, user_input=None) -> FlowResult:
-        """Handle the initial step."""
+        """Handle the initial step - device selection."""
         errors = {}
         
         if user_input is not None:
-            # Validate the input
+            try:
+                # Store selected entity and move to configuration step
+                self._selected_entity = user_input[CONF_SELECTED_CLIMATE_ENTITY]
+                return await self.async_step_configure()
+            except Exception as err:
+                _LOGGER.error("Error during device selection: %s", err, exc_info=True)
+                errors["base"] = "cannot_connect"
+
+        # Get available climate entities
+        climate_entities = await self._get_climate_entities()
+        
+        if not climate_entities:
+            return self.async_abort(reason="no_climate_entities")
+
+        # Show device selection form
+        data_schema = vol.Schema({
+            vol.Required(CONF_SELECTED_CLIMATE_ENTITY): vol.In(climate_entities),
+        })
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=data_schema,
+            errors=errors,
+        )
+
+    async def async_step_configure(self, user_input=None) -> FlowResult:
+        """Handle the configuration step."""
+        errors = {}
+        
+        if user_input is not None:
             try:
                 # Validate temperature ranges
                 min_temp = user_input.get(CONF_SAFETY_MIN_TEMP, DEFAULT_SAFETY_MIN_TEMP)
@@ -41,20 +76,30 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
                 if min_temp >= max_temp:
                     errors["base"] = "invalid_temp_range"
                 else:
-                    # Check if integration is already configured (allow only one instance)
+                    # Check if this climate entity is already configured
                     existing_entries = self._async_current_entries()
-                    if existing_entries:
-                        return self.async_abort(reason="single_instance_allowed")
+                    for entry in existing_entries:
+                        if entry.data.get(CONF_SELECTED_CLIMATE_ENTITY) == self._selected_entity:
+                            return self.async_abort(reason="already_configured")
+                    
+                    # Combine entity selection with configuration
+                    final_data = {
+                        CONF_SELECTED_CLIMATE_ENTITY: self._selected_entity,
+                        **user_input
+                    }
                     
                     return self.async_create_entry(
-                        title="Enhanced Z-Wave Thermostat",
-                        data=user_input
+                        title=f"Enhanced Z-Wave Thermostat ({self._selected_entity})",
+                        data=final_data
                     )
-            except vol.Invalid:
-                errors["base"] = "invalid_input"
             except Exception as err:
                 _LOGGER.error("Error during configuration: %s", err, exc_info=True)
                 errors["base"] = "cannot_connect"
+
+        # Get the friendly name of the selected entity
+        entity_registry = er.async_get(self.hass)
+        entity_entry = entity_registry.async_get(self._selected_entity)
+        friendly_name = entity_entry.name or self._selected_entity if entity_entry else self._selected_entity
 
         # Show configuration form
         data_schema = vol.Schema({
@@ -69,10 +114,38 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
         })
 
         return self.async_show_form(
-            step_id="user",
+            step_id="configure",
             data_schema=data_schema,
             errors=errors,
+            description_placeholders={"entity_name": friendly_name}
         )
+
+    async def _get_climate_entities(self) -> dict:
+        """Get available climate entities."""
+        climate_entities = {}
+        
+        # Get entity registry
+        entity_registry = er.async_get(self.hass)
+        
+        # Find all climate entities
+        for entity_entry in entity_registry.entities.values():
+            if entity_entry.platform == Platform.CLIMATE.value:
+                # Get the state to check if entity is available
+                state = self.hass.states.get(entity_entry.entity_id)
+                if state and state.state not in ["unavailable", "unknown"]:
+                    # Use friendly name if available, otherwise entity_id
+                    friendly_name = entity_entry.name or state.attributes.get("friendly_name") or entity_entry.entity_id
+                    climate_entities[entity_entry.entity_id] = f"{friendly_name} ({entity_entry.entity_id})"
+        
+        # Also check for climate entities that might not be in the registry
+        for entity_id, state in self.hass.states.async_all().items():
+            if (entity_id.startswith("climate.") and 
+                entity_id not in climate_entities and 
+                state.state not in ["unavailable", "unknown"]):
+                friendly_name = state.attributes.get("friendly_name") or entity_id
+                climate_entities[entity_id] = f"{friendly_name} ({entity_id})"
+        
+        return climate_entities
 
     @staticmethod
     @callback

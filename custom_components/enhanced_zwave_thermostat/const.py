@@ -5,6 +5,7 @@ NAME = "Enhanced Z-Wave Thermostat"
 
 # Configuration constants
 CONF_THERMOSTATS = "thermostats"
+CONF_SELECTED_CLIMATE_ENTITY = "selected_climate_entity"
 CONF_SAFETY_MIN_TEMP = "safety_min_temp"
 CONF_SAFETY_MAX_TEMP = "safety_max_temp"
 CONF_HOME_TEMP = "home_temp"

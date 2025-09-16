@@ -13,12 +13,16 @@ PLATFORMS = [Platform.CLIMATE]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Enhanced Z-Wave Thermostat from a config entry."""
-    _LOGGER.info("Setting up Enhanced Z-Wave Thermostat integration")
+    selected_entity = entry.data.get("selected_climate_entity")
+    _LOGGER.info("Setting up Enhanced Z-Wave Thermostat integration for entity: %s", selected_entity)
     
     try:
         # Store configuration data
         hass.data.setdefault(DOMAIN, {})
-        hass.data[DOMAIN][entry.entry_id] = {}
+        hass.data[DOMAIN][entry.entry_id] = {
+            "selected_entity": selected_entity,
+            "config": entry.data,
+        }
         
         # Copy card file to www directory (non-blocking)
         try:
@@ -39,7 +43,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Forward the setup to the climate platform
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         
-        _LOGGER.info("Enhanced Z-Wave Thermostat integration setup completed successfully")
+        _LOGGER.info("Enhanced Z-Wave Thermostat integration setup completed successfully for %s", selected_entity)
         return True
         
     except Exception as err:
