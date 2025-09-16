@@ -2,16 +2,10 @@
   "config": {
     "step": {
       "user": {
-        "title": "Select Climate Device",
-        "description": "Choose the climate device you want to enhance with advanced features.",
+        "title": "Enhanced Z-Wave Thermostat Setup",
+        "description": "Configure your Enhanced Z-Wave Thermostat integration.",
         "data": {
-          "selected_climate_entity": "Climate Device"
-        }
-      },
-      "configure": {
-        "title": "Configure Enhanced Thermostat",
-        "description": "Set up temperature limits and defaults for {entity_name}.",
-        "data": {
+          "selected_climate_entity": "Climate Entity ID (Optional)",
           "safety_min_temp": "Minimum Safety Temperature (°F)",
           "safety_max_temp": "Maximum Safety Temperature (°F)", 
           "home_temp": "Default Home Temperature (°F)",
@@ -26,9 +20,8 @@
       "unknown": "Unexpected error occurred. Please try again."
     },
     "abort": {
-      "already_configured": "This climate device is already configured with Enhanced Z-Wave Thermostat.",
-      "single_instance_allowed": "Only a single configuration of Enhanced Z-Wave Thermostat is allowed.",
-      "no_climate_entities": "No climate devices found. Make sure you have at least one thermostat configured in Home Assistant."
+      "already_configured": "This integration is already configured.",
+      "single_instance_allowed": "Only a single configuration is allowed."
     }
   },
   "options": {
