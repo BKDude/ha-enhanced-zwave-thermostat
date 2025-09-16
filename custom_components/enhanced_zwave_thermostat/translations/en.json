@@ -20,8 +20,7 @@
       "unknown": "Unexpected error occurred. Please try again."
     },
     "abort": {
-      "already_configured": "This integration is already configured.",
-      "single_instance_allowed": "Only a single configuration is allowed."
+      "already_configured": "This configuration already exists."
     }
   },
   "options": {

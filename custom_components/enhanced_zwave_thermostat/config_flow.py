@@ -40,13 +40,17 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
                 if min_temp >= max_temp:
                     errors["base"] = "invalid_temp_range"
                 else:
-                    # Check if already configured
-                    existing_entries = self._async_current_entries()
-                    if existing_entries:
-                        return self.async_abort(reason="single_instance_allowed")
+                    # Allow multiple instances - create unique title
+                    entity_id = user_input.get(CONF_SELECTED_CLIMATE_ENTITY, "").strip()
+                    if entity_id:
+                        title = f"Enhanced Z-Wave Thermostat ({entity_id})"
+                    else:
+                        # If no entity specified, create a generic instance
+                        existing_count = len(self._async_current_entries())
+                        title = f"Enhanced Z-Wave Thermostat ({existing_count + 1})"
                     
                     return self.async_create_entry(
-                        title="Enhanced Z-Wave Thermostat",
+                        title=title,
                         data=user_input
                     )
             except Exception as err:
