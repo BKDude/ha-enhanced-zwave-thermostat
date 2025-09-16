@@ -15,22 +15,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Enhanced Z-Wave Thermostat from a config entry."""
     _LOGGER.info("Setting up Enhanced Z-Wave Thermostat integration")
     
-    # Store configuration data
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {}
-    
-    # Copy card file to www directory if it doesn't exist
-    await _ensure_card_file_exists(hass)
-    
-    # Set up services (skip if running in test mode)
-    if not getattr(hass, "_test_mode", False):
-        from .services import async_setup_services
-        await async_setup_services(hass)
-    
-    # Forward the setup to the climate platform
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    
-    return True
+    try:
+        # Store configuration data
+        hass.data.setdefault(DOMAIN, {})
+        hass.data[DOMAIN][entry.entry_id] = {}
+        
+        # Copy card file to www directory if it doesn't exist
+        await _ensure_card_file_exists(hass)
+        
+        # Set up services (skip if running in test mode)
+        if not getattr(hass, "_test_mode", False):
+            from .services import async_setup_services
+            await async_setup_services(hass)
+        
+        # Forward the setup to the climate platform
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        
+        _LOGGER.info("Enhanced Z-Wave Thermostat integration setup completed successfully")
+        return True
+        
+    except Exception as err:
+        _LOGGER.error("Error setting up Enhanced Z-Wave Thermostat integration: %s", err, exc_info=True)
+        return False
 
 
 async def _ensure_card_file_exists(hass: HomeAssistant) -> None:

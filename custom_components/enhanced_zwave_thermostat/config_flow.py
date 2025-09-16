@@ -5,7 +5,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import selector
 
 from .const import (
     DOMAIN,
@@ -39,40 +38,33 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
                 await self.async_set_unique_id(DOMAIN)
                 self._abort_if_unique_id_configured()
                 
-                return self.async_create_entry(
-                    title="Enhanced Z-Wave Thermostat",
-                    data=user_input
-                )
+                # Validate temperature ranges
+                min_temp = user_input.get(CONF_SAFETY_MIN_TEMP, DEFAULT_SAFETY_MIN_TEMP)
+                max_temp = user_input.get(CONF_SAFETY_MAX_TEMP, DEFAULT_SAFETY_MAX_TEMP)
+                
+                if min_temp >= max_temp:
+                    errors["base"] = "invalid_temp_range"
+                else:
+                    return self.async_create_entry(
+                        title="Enhanced Z-Wave Thermostat",
+                        data=user_input
+                    )
+            except vol.Invalid:
+                errors["base"] = "invalid_input"
             except Exception as err:
                 _LOGGER.error("Error during configuration: %s", err)
-                errors["base"] = "unknown"
+                errors["base"] = "cannot_connect"
 
         # Show configuration form
         data_schema = vol.Schema({
             vol.Optional(CONF_SAFETY_MIN_TEMP, default=DEFAULT_SAFETY_MIN_TEMP): 
-                selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=32, max=80, mode=selector.NumberSelectorMode.BOX
-                    )
-                ),
+                vol.All(vol.Coerce(int), vol.Range(min=32, max=80)),
             vol.Optional(CONF_SAFETY_MAX_TEMP, default=DEFAULT_SAFETY_MAX_TEMP):
-                selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=60, max=100, mode=selector.NumberSelectorMode.BOX
-                    )
-                ),
+                vol.All(vol.Coerce(int), vol.Range(min=60, max=100)),
             vol.Optional(CONF_HOME_TEMP, default=DEFAULT_HOME_TEMP):
-                selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=50, max=85, mode=selector.NumberSelectorMode.BOX
-                    )
-                ),
+                vol.All(vol.Coerce(int), vol.Range(min=50, max=85)),
             vol.Optional(CONF_AWAY_TEMP, default=DEFAULT_AWAY_TEMP):
-                selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=50, max=85, mode=selector.NumberSelectorMode.BOX
-                    )
-                ),
+                vol.All(vol.Coerce(int), vol.Range(min=50, max=85)),
         })
 
         return self.async_show_form(
@@ -106,21 +98,13 @@ class EnhancedZWaveThermostatOptionsFlow(config_entries.OptionsFlow):
                 default=self.config_entry.options.get(
                     CONF_SAFETY_MIN_TEMP, DEFAULT_SAFETY_MIN_TEMP
                 )
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=32, max=80, mode=selector.NumberSelectorMode.BOX
-                )
-            ),
+            ): vol.All(vol.Coerce(int), vol.Range(min=32, max=80)),
             vol.Optional(
                 CONF_SAFETY_MAX_TEMP,
                 default=self.config_entry.options.get(
                     CONF_SAFETY_MAX_TEMP, DEFAULT_SAFETY_MAX_TEMP
                 )
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=60, max=100, mode=selector.NumberSelectorMode.BOX
-                )
-            ),
+            ): vol.All(vol.Coerce(int), vol.Range(min=60, max=100)),
         })
 
         return self.async_show_form(

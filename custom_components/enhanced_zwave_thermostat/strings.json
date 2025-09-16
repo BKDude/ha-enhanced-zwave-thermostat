@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Enhanced Z-Wave Thermostat Setup",
+        "description": "Configure your Enhanced Z-Wave Thermostat integration.",
+        "data": {
+          "safety_min_temp": "Minimum Safety Temperature (°F)",
+          "safety_max_temp": "Maximum Safety Temperature (°F)", 
+          "home_temp": "Default Home Temperature (°F)",
+          "away_temp": "Default Away Temperature (°F)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect. Please check your configuration.",
+      "invalid_input": "Invalid input provided. Please check your values.",
+      "invalid_temp_range": "Minimum temperature must be less than maximum temperature.",
+      "unknown": "Unexpected error occurred. Please try again."
+    },
+    "abort": {
+      "already_configured": "Integration is already configured. Only one instance is allowed.",
+      "single_instance_allowed": "Only a single configuration of Enhanced Z-Wave Thermostat is allowed."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enhanced Z-Wave Thermostat Options",
+        "description": "Configure options for your Enhanced Z-Wave Thermostat.",
+        "data": {
+          "safety_min_temp": "Minimum Safety Temperature (°F)",
+          "safety_max_temp": "Maximum Safety Temperature (°F)"
+        }
+      }
+    }
+  }
+}
