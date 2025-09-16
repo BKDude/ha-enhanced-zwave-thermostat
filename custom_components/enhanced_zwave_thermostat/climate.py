@@ -23,7 +23,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers import entity_registry as er, device_registry as dr
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_SELECTED_CLIMATE_ENTITY
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,56 +34,50 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Enhanced Z-Wave Thermostat climate entities."""
-    _LOGGER.info("Setting up Enhanced Z-Wave Thermostat climate platform")
+    _LOGGER.info("Setting up Enhanced Z-Wave Thermostat climate platform for config entry: %s", config_entry.title)
+    
+    # Get the selected climate entity from config flow
+    selected_entity_id = config_entry.data.get(CONF_SELECTED_CLIMATE_ENTITY)
+    
+    if not selected_entity_id:
+        _LOGGER.error("No climate entity selected in config entry %s", config_entry.entry_id)
+        return
     
     # Get entity and device registries
     entity_registry = er.async_get(hass)
     device_registry = dr.async_get(hass)
     
-    # Find existing Z-Wave JS climate entities
-    entities = []
+    # Get the selected entity from the registry
+    entity_entry = entity_registry.async_get(selected_entity_id)
     
-    # Look for Z-Wave JS climate entities in the entity registry
-    for entity_id, entity_entry in entity_registry.entities.items():
-        if (entity_entry.platform == ZWAVE_JS_DOMAIN and 
-            entity_entry.domain == Platform.CLIMATE):
-            
-            # Get device info
-            device_entry = device_registry.async_get(entity_entry.device_id) if entity_entry.device_id else None
-            
-            if device_entry:
-                _LOGGER.info("Found Z-Wave climate entity: %s (%s)", entity_id, device_entry.name)
-                
-                # Create enhanced wrapper entity
-                enhanced_entity = EnhancedZWaveThermostat(
-                    hass=hass,
-                    config_entry=config_entry,
-                    name=f"Enhanced {device_entry.name or entity_entry.name or 'Thermostat'}",
-                    unique_id=f"enhanced_{entity_entry.entity_id}",
-                    zwave_entity_id=entity_id,
-                    device_entry=device_entry
-                )
-                entities.append(enhanced_entity)
-    
-    # Only create demo entity in test mode
-    if not entities and getattr(hass, "_test_mode", False):
-        _LOGGER.info("No Z-Wave climate entities found. Creating demo entity for testing.")
-        entities = [
-            EnhancedZWaveThermostat(
-                hass=hass,
-                config_entry=config_entry,
-                name="Enhanced Demo Thermostat",
-                unique_id="enhanced_demo_thermostat_1",
-                zwave_entity_id=None,
-                device_entry=None
-            )
-        ]
-    elif not entities:
-        _LOGGER.warning("No Z-Wave climate entities found. Install and configure Z-Wave JS integration with thermostat devices first.")
+    if not entity_entry:
+        _LOGGER.error("Selected climate entity %s not found in registry", selected_entity_id)
         return
     
-    async_add_entities(entities, True)
-    _LOGGER.info("Added %d Enhanced Z-Wave Thermostat entities", len(entities))
+    if entity_entry.domain != "climate":
+        _LOGGER.error("Selected entity %s is not a climate entity (domain: %s)", selected_entity_id, entity_entry.domain)
+        return
+    
+    _LOGGER.info("Setting up enhanced thermostat for entity: %s", selected_entity_id)
+    
+    # Get device info if available
+    device_entry = device_registry.async_get(entity_entry.device_id) if entity_entry.device_id else None
+    
+    # Create enhanced wrapper entity
+    entity_name = entity_entry.name or entity_entry.original_name or "Thermostat"
+    unique_id = f"enhanced_{selected_entity_id.replace('.', '_')}"
+    
+    enhanced_entity = EnhancedZWaveThermostat(
+        hass=hass,
+        config_entry=config_entry,
+        name=f"Enhanced {entity_name}",
+        unique_id=unique_id,
+        selected_entity_id=selected_entity_id,
+        device_entry=device_entry
+    )
+    
+    async_add_entities([enhanced_entity], True)
+    _LOGGER.info("Added Enhanced Z-Wave Thermostat entity: %s", enhanced_entity.name)
 
 
 class EnhancedZWaveThermostat(ClimateEntity):
@@ -91,17 +85,13 @@ class EnhancedZWaveThermostat(ClimateEntity):
     
     _attr_should_poll = False  # We'll subscribe to state changes instead
 
-    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, name: str, unique_id: str, zwave_entity_id=None, device_entry=None):
+    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, name: str, unique_id: str, selected_entity_id=None, device_entry=None):
         """Initialize the thermostat."""
         self.hass = hass
         self._config_entry = config_entry
         self._attr_name = name
-        # Use stable unique ID based on device entry or fallback
-        if device_entry:
-            self._attr_unique_id = f"enhanced_{device_entry.id}"
-        else:
-            self._attr_unique_id = unique_id
-        self._zwave_entity_id = zwave_entity_id
+        self._attr_unique_id = unique_id
+        self._selected_entity_id = selected_entity_id
         self._device_entry = device_entry
         self._state_listener = None
         
@@ -168,9 +158,9 @@ class EnhancedZWaveThermostat(ClimateEntity):
     @property
     def current_temperature(self) -> float | None:
         """Return the current temperature."""
-        if self._zwave_entity_id:
+        if self._selected_entity_id:
             # Get current temperature from underlying Z-Wave entity
-            state = self.hass.states.get(self._zwave_entity_id)
+            state = self.hass.states.get(self._selected_entity_id)
             if state and state.attributes.get("current_temperature"):
                 return float(state.attributes["current_temperature"])
         return self._current_temperature
@@ -178,9 +168,9 @@ class EnhancedZWaveThermostat(ClimateEntity):
     @property
     def target_temperature(self) -> float | None:
         """Return the temperature we try to reach."""
-        if self._zwave_entity_id:
+        if self._selected_entity_id:
             # Get target temperature from underlying Z-Wave entity
-            state = self.hass.states.get(self._zwave_entity_id)
+            state = self.hass.states.get(self._selected_entity_id)
             if state and state.attributes.get("temperature"):
                 return float(state.attributes["temperature"])
         return self._target_temperature
@@ -188,9 +178,9 @@ class EnhancedZWaveThermostat(ClimateEntity):
     @property
     def hvac_mode(self) -> HVACMode | None:
         """Return current operation."""
-        if self._zwave_entity_id:
+        if self._selected_entity_id:
             # Get HVAC mode from underlying Z-Wave entity
-            state = self.hass.states.get(self._zwave_entity_id)
+            state = self.hass.states.get(self._selected_entity_id)
             if state:
                 return HVACMode(state.state) if state.state in [mode.value for mode in HVACMode] else self._hvac_mode
         return self._hvac_mode
@@ -198,9 +188,9 @@ class EnhancedZWaveThermostat(ClimateEntity):
     @property
     def hvac_action(self) -> HVACAction | None:
         """Return the current running hvac operation."""
-        if self._zwave_entity_id:
+        if self._selected_entity_id:
             # Get HVAC action from underlying Z-Wave entity
-            state = self.hass.states.get(self._zwave_entity_id)
+            state = self.hass.states.get(self._selected_entity_id)
             if state and state.attributes.get("hvac_action"):
                 return HVACAction(state.attributes["hvac_action"])
         return self._hvac_action
@@ -242,12 +232,12 @@ class EnhancedZWaveThermostat(ClimateEntity):
             temperature = self._safety_max_temp
 
         # Delegate to underlying Z-Wave entity if available
-        if self._zwave_entity_id:
+        if self._selected_entity_id:
             await self.hass.services.async_call(
                 "climate",
                 "set_temperature",
                 {
-                    "entity_id": self._zwave_entity_id,
+                    "entity_id": self._selected_entity_id,
                     "temperature": temperature
                 }
             )
@@ -261,12 +251,12 @@ class EnhancedZWaveThermostat(ClimateEntity):
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new target hvac mode."""
         # Delegate to underlying Z-Wave entity if available
-        if self._zwave_entity_id:
+        if self._selected_entity_id:
             await self.hass.services.async_call(
                 "climate",
                 "set_hvac_mode",
                 {
-                    "entity_id": self._zwave_entity_id,
+                    "entity_id": self._selected_entity_id,
                     "hvac_mode": hvac_mode.value
                 }
             )
@@ -331,13 +321,13 @@ class EnhancedZWaveThermostat(ClimateEntity):
         """Run when entity is added to hass."""
         await super().async_added_to_hass()
         
-        if self._zwave_entity_id:
+        if self._selected_entity_id:
             # Subscribe to state changes from the underlying Z-Wave entity
             @callback
             def _state_listener(event):
                 """Handle state changes from underlying entity."""
                 entity_id = event.data.get("entity_id")
-                if entity_id == self._zwave_entity_id:
+                if entity_id == self._selected_entity_id:
                     # Update our state when the underlying entity changes
                     self.async_write_ha_state()
             
@@ -356,7 +346,7 @@ class EnhancedZWaveThermostat(ClimateEntity):
     async def async_update(self) -> None:
         """Update the entity."""
         # For demo mode only, simulate some changes
-        if not self._zwave_entity_id:
+        if not self._selected_entity_id:
             # Demo mode - simulate temperature fluctuations
             import random
             self._current_temperature += random.uniform(-0.5, 0.5)

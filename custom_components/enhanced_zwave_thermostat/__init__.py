@@ -67,19 +67,33 @@ async def _ensure_card_file_exists(hass: HomeAssistant) -> None:
         www_dir = config_dir / "www"
         card_dest = www_dir / "enhanced-thermostat-card.js"
         
-        # Create www directory if it doesn't exist
-        www_dir.mkdir(exist_ok=True)
-        
-        # Copy card file if it doesn't exist or if source is newer
-        if card_source.exists():
-            if not card_dest.exists() or card_source.stat().st_mtime > card_dest.stat().st_mtime:
-                shutil.copy2(card_source, card_dest)
-                _LOGGER.info("Copied enhanced-thermostat-card.js to www directory")
+        # Run file operations in executor to avoid blocking the event loop
+        def _copy_card_file():
+            """Copy card file in executor."""
+            try:
+                # Create www directory if it doesn't exist
+                www_dir.mkdir(exist_ok=True)
                 
-                # Try to register the resource automatically
-                await _register_card_resource(hass)
-        else:
-            _LOGGER.warning("Card source file not found: %s", card_source)
+                # Copy card file if it doesn't exist or if source is newer
+                if card_source.exists():
+                    if not card_dest.exists() or card_source.stat().st_mtime > card_dest.stat().st_mtime:
+                        shutil.copy2(card_source, card_dest)
+                        return True
+                    return False
+                else:
+                    _LOGGER.warning("Card source file not found: %s", card_source)
+                    return False
+            except Exception as e:
+                _LOGGER.warning("Could not copy card file: %s", e)
+                return False
+        
+        # Execute file operations in thread pool
+        copied = await hass.async_add_executor_job(_copy_card_file)
+        
+        if copied:
+            _LOGGER.info("Copied enhanced-thermostat-card.js to www directory")
+            # Try to register the resource automatically
+            await _register_card_resource(hass)
             
     except Exception as e:
         _LOGGER.warning("Could not copy card file: %s", e)

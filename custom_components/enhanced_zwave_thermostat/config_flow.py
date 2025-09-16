@@ -72,11 +72,10 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
                     if not entity_entry:
                         errors["base"] = "entity_not_found"
                         _LOGGER.error("Selected entity %s not found in registry", selected_entity)
-                    # TEMPORARILY DISABLE DOMAIN CHECK TO TEST
-                    # elif entity_entry.domain != Platform.CLIMATE.value:
-                    #     errors["base"] = "invalid_entity_type"
-                    #     _LOGGER.error("Selected entity %s is not a climate entity (domain: %s, platform: %s)", 
-                    #                 selected_entity, entity_entry.domain, entity_entry.platform)
+                    elif entity_entry.domain != "climate":
+                        errors["base"] = "invalid_entity_type"
+                        _LOGGER.error("Selected entity %s is not a climate entity (domain: %s, platform: %s), expected domain: climate", 
+                                    selected_entity, entity_entry.domain, entity_entry.platform)
                     else:
                         _LOGGER.info("Entity validation passed for %s (domain: %s, platform: %s)", 
                                    selected_entity, entity_entry.domain, entity_entry.platform)
@@ -211,7 +210,7 @@ class EnhancedZWaveThermostatOptionsFlow(config_entries.OptionsFlow):
 
     def __init__(self, config_entry):
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None) -> FlowResult:
         """Manage the options."""
@@ -221,13 +220,13 @@ class EnhancedZWaveThermostatOptionsFlow(config_entries.OptionsFlow):
         data_schema = vol.Schema({
             vol.Optional(
                 CONF_SAFETY_MIN_TEMP,
-                default=self.config_entry.options.get(
+                default=self._config_entry.options.get(
                     CONF_SAFETY_MIN_TEMP, DEFAULT_SAFETY_MIN_TEMP
                 )
             ): vol.All(vol.Coerce(int), vol.Range(min=32, max=80)),
             vol.Optional(
                 CONF_SAFETY_MAX_TEMP,
-                default=self.config_entry.options.get(
+                default=self._config_entry.options.get(
                     CONF_SAFETY_MAX_TEMP, DEFAULT_SAFETY_MAX_TEMP
                 )
             ): vol.All(vol.Coerce(int), vol.Range(min=60, max=100)),
