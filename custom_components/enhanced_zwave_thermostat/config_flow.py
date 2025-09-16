@@ -144,12 +144,19 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
 
     async def _check_existing_entries(self, entity_id: str, errors: dict):
         """Check if entity is already configured."""
+        existing_entries = []
         for entry in self._async_current_entries():
-            if entry.data.get(CONF_SELECTED_CLIMATE_ENTITY) == entity_id:
-                errors["base"] = "entity_already_configured"
-                _LOGGER.warning("Entity %s is already configured in entry %s", 
-                              entity_id, entry.entry_id)
-                break
+            configured_entity = entry.data.get(CONF_SELECTED_CLIMATE_ENTITY)
+            if configured_entity == entity_id:
+                existing_entries.append(entry)
+                
+        if existing_entries:
+            errors["base"] = "entity_already_configured"
+            entry_titles = [entry.title for entry in existing_entries]
+            _LOGGER.warning("Entity %s is already configured in %d entries: %s", 
+                          entity_id, len(existing_entries), entry_titles)
+            # Add context to help user understand which entries to remove
+            errors["entity_already_configured_details"] = f"Remove existing entries: {', '.join(entry_titles)}"
 
     def _create_data_schema(self):
         """Create the data schema for the form."""

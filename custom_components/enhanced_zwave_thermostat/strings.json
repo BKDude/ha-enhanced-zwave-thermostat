@@ -17,7 +17,7 @@
       "no_entity_selected": "Please select a climate entity to control.",
       "entity_not_found": "The selected climate entity was not found.",
       "invalid_entity_type": "The selected entity is not a climate device.",
-      "entity_already_configured": "This climate entity is already configured.",
+      "entity_already_configured": "This climate entity is already configured in another Enhanced Z-Wave Thermostat integration. Please remove the existing integration first, or choose a different climate entity.",
       "no_climate_entities": "No climate entities found in your Home Assistant setup. Please ensure you have climate devices configured first.",
       "invalid_temp_range": "Minimum temperature must be less than maximum temperature.",
       "unknown_error": "An unexpected error occurred. Please check the logs for more details."
