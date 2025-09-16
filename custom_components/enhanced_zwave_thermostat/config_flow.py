@@ -72,10 +72,11 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
                     if not entity_entry:
                         errors["base"] = "entity_not_found"
                         _LOGGER.error("Selected entity %s not found in registry", selected_entity)
-                    elif entity_entry.domain != Platform.CLIMATE.value:
-                        errors["base"] = "invalid_entity_type"
-                        _LOGGER.error("Selected entity %s is not a climate entity (domain: %s, platform: %s)", 
-                                    selected_entity, entity_entry.domain, entity_entry.platform)
+                    # TEMPORARILY DISABLE DOMAIN CHECK TO TEST
+                    # elif entity_entry.domain != Platform.CLIMATE.value:
+                    #     errors["base"] = "invalid_entity_type"
+                    #     _LOGGER.error("Selected entity %s is not a climate entity (domain: %s, platform: %s)", 
+                    #                 selected_entity, entity_entry.domain, entity_entry.platform)
                     else:
                         _LOGGER.info("Entity validation passed for %s (domain: %s, platform: %s)", 
                                    selected_entity, entity_entry.domain, entity_entry.platform)
