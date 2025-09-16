@@ -1,0 +1,14 @@
+{
+  "domain": "enhanced_zwave_thermostat",
+  "name": "Enhanced Z-Wave Thermostat",
+  "version": "1.0.0",
+  "documentation": "https://github.com/YOUR_USERNAME/enhanced-zwave-thermostat-complete",
+  "issue_tracker": "https://github.com/YOUR_USERNAME/enhanced-zwave-thermostat-complete/issues",
+  "dependencies": ["zwave_js"],
+  "codeowners": ["@YOUR_USERNAME"],
+  "requirements": [],
+  "config_flow": true,
+  "iot_class": "local_polling",
+  "quality_scale": "silver",
+  "integration_type": "integration"
+}
