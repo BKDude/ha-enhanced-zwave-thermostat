@@ -34,10 +34,6 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
         if user_input is not None:
             # Validate the input
             try:
-                # Check if integration is already configured
-                await self.async_set_unique_id(DOMAIN)
-                self._abort_if_unique_id_configured()
-                
                 # Validate temperature ranges
                 min_temp = user_input.get(CONF_SAFETY_MIN_TEMP, DEFAULT_SAFETY_MIN_TEMP)
                 max_temp = user_input.get(CONF_SAFETY_MAX_TEMP, DEFAULT_SAFETY_MAX_TEMP)
@@ -45,6 +41,11 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
                 if min_temp >= max_temp:
                     errors["base"] = "invalid_temp_range"
                 else:
+                    # Check if integration is already configured (allow only one instance)
+                    existing_entries = self._async_current_entries()
+                    if existing_entries:
+                        return self.async_abort(reason="single_instance_allowed")
+                    
                     return self.async_create_entry(
                         title="Enhanced Z-Wave Thermostat",
                         data=user_input
@@ -52,7 +53,7 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
             except vol.Invalid:
                 errors["base"] = "invalid_input"
             except Exception as err:
-                _LOGGER.error("Error during configuration: %s", err)
+                _LOGGER.error("Error during configuration: %s", err, exc_info=True)
                 errors["base"] = "cannot_connect"
 
         # Show configuration form

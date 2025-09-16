@@ -20,13 +20,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data.setdefault(DOMAIN, {})
         hass.data[DOMAIN][entry.entry_id] = {}
         
-        # Copy card file to www directory if it doesn't exist
-        await _ensure_card_file_exists(hass)
+        # Copy card file to www directory (non-blocking)
+        try:
+            await _ensure_card_file_exists(hass)
+        except Exception as card_err:
+            _LOGGER.warning("Could not setup card file: %s", card_err)
+            # Don't fail the whole setup if card copying fails
         
         # Set up services (skip if running in test mode)
         if not getattr(hass, "_test_mode", False):
-            from .services import async_setup_services
-            await async_setup_services(hass)
+            try:
+                from .services import async_setup_services
+                await async_setup_services(hass)
+            except Exception as service_err:
+                _LOGGER.warning("Could not setup services: %s", service_err)
+                # Don't fail the whole setup if services fail
         
         # Forward the setup to the climate platform
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
