@@ -6,7 +6,6 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import entity_registry as er
-from homeassistant.const import Platform
 
 from .const import (
     DOMAIN,
@@ -124,26 +123,31 @@ class EnhancedZWaveThermostatConfigFlow(config_entries.ConfigFlow, domain=DOMAIN
         """Get available climate entities."""
         climate_entities = {}
         
-        # Get entity registry
-        entity_registry = er.async_get(self.hass)
+        try:
+            # Get entity registry
+            entity_registry = er.async_get(self.hass)
+            
+            # Find all climate entities
+            for entity_entry in entity_registry.entities.values():
+                if entity_entry.entity_id.startswith("climate."):
+                    # Get the state to check if entity is available
+                    state = self.hass.states.get(entity_entry.entity_id)
+                    if state and state.state not in ["unavailable", "unknown"]:
+                        # Use friendly name if available, otherwise entity_id
+                        friendly_name = entity_entry.name or state.attributes.get("friendly_name") or entity_entry.entity_id
+                        climate_entities[entity_entry.entity_id] = f"{friendly_name} ({entity_entry.entity_id})"
+            
+            # Also check for climate entities that might not be in the registry
+            for entity_id, state in self.hass.states.async_all().items():
+                if (entity_id.startswith("climate.") and 
+                    entity_id not in climate_entities and 
+                    state.state not in ["unavailable", "unknown"]):
+                    friendly_name = state.attributes.get("friendly_name") or entity_id
+                    climate_entities[entity_id] = f"{friendly_name} ({entity_id})"
         
-        # Find all climate entities
-        for entity_entry in entity_registry.entities.values():
-            if entity_entry.platform == Platform.CLIMATE.value:
-                # Get the state to check if entity is available
-                state = self.hass.states.get(entity_entry.entity_id)
-                if state and state.state not in ["unavailable", "unknown"]:
-                    # Use friendly name if available, otherwise entity_id
-                    friendly_name = entity_entry.name or state.attributes.get("friendly_name") or entity_entry.entity_id
-                    climate_entities[entity_entry.entity_id] = f"{friendly_name} ({entity_entry.entity_id})"
-        
-        # Also check for climate entities that might not be in the registry
-        for entity_id, state in self.hass.states.async_all().items():
-            if (entity_id.startswith("climate.") and 
-                entity_id not in climate_entities and 
-                state.state not in ["unavailable", "unknown"]):
-                friendly_name = state.attributes.get("friendly_name") or entity_id
-                climate_entities[entity_id] = f"{friendly_name} ({entity_id})"
+        except Exception as err:
+            _LOGGER.error("Error getting climate entities: %s", err, exc_info=True)
+            # Return empty dict if there's an error, will trigger no_climate_entities abort
         
         return climate_entities
 
